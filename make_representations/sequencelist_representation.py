@@ -50,8 +50,8 @@ class SequenceKmerRep(object):
                         'aucg', repeat=self.k_mer)]
             if self.testing == 1:
                 self.vocab = self.vocab
-            self.vocab.sort()
-            self.vectorizer = TfidfVectorizer(use_idf=use_idf, vocabulary=self.vocab, analyzer='char',
+            # self.vocab.sort()
+            self.vectorizer = TfidfVectorizer(use_idf=use_idf, analyzer='char',
                                               ngram_range=(
                                                   self.k_mer, self.k_mer),
                                               norm=norm, stop_words=[], lowercase=True, binary=False)
@@ -89,8 +89,7 @@ class SequenceKmerEmbRep(SequenceKmerRep):
         '''
         SequenceKmerRep.__init__(self, sequences, seq_type, k_mer, restricted_kmer=restricted_kmer, use_idf=use_idf,
                                  norm=norm, delete_empty_col=True)
-        print('loading embedding..')
-
+        
         if embedding_file.split('.')[-1]=='txt':
             self.model = KeyedVectors.load_word2vec_format(
                 embedding_file, binary=False)

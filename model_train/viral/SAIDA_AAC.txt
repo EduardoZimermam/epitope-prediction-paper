@@ -1,0 +1,11 @@
+SAIDA APENAS COM AAC
+
+[Parallel(n_jobs=40)]: Done 385 out of 385 | elapsed: 122.4min finished
+>> Finish train grid search to model
+Best parameters:  {'C': 1, 'gamma': 0.0001}
+Best accuracy: : 0.5953218188670135
+roc_auc: 0.5953218188670135 accuracy: 0.6562718333403021 precision +: 0.0 recall +: 0.0 f1 +: 0.0 precision -: 0.6562718333403021 recall -: 1.0 f1 -: 0.7924687437798739 precision_micro: 0.6562718333403021 f1 -: 0.3281359166701511 mcc -: 0.0
+
+real	122m54,022s
+user	957m9,195s
+sys	2m38,694s

@@ -1,4 +1,5 @@
 
+from time import sleep
 from sklearn.calibration import CalibratedClassifierCV as cc, calibration_curve
 from Bio import SeqIO
 from pydpi.pypro import PyPro
@@ -27,6 +28,7 @@ from make_representations.sequencelist_representation import SequenceKmerRep, Se
 from sklearn.metrics.scorer import make_scorer
 import argparse
 import pickle
+import errno
 
 
 
@@ -203,27 +205,41 @@ def QSO(pep):
 
 
 
-def readpeptides(posfile, negfile):  # return the peptides from input peptide list file
-    posdata = open(posfile, 'r')
+def read_peptides(pos_file, neg_file): 
+    """ return the peptides from input peptide list file """ 
+
+    print(">> Start sequence to read the files contains the positive and negative peptides")
+    
+    # Try open the files
+    try:
+        pos_data = open(pos_file,'r')
+        neg_data = open(neg_file,'r')
+    except ValueError:
+        sys.exit()
+
     pos = []
-    for l in posdata.readlines():
-        if l[0] == '#':
+    for l in pos_data.readlines():
+        if l[0] == '#': # Ignoring the comments on file
             continue
         else:
-            pos.append(l.strip('\t0\n'))
-    posdata.close()
-    negdata = open(negfile, 'r')
+            pos.append(l.strip()) # Append to positive list the peptide and remove all spaces
+    
     neg = []
-    for l in negdata.readlines():
-        if l[0] == '#':
+    for l in neg_data.readlines():
+        if l[0] == '#': # Ignoring the comments on file
             continue
         else:
-            neg.append(l.strip('\t0\n'))
-    negdata.close()
+            neg.append(l.strip()) # Append to negative list the peptide and remove all spaces
+
+    print(">> Finish sequence to read the files contains the positive and negative peptides")
+
     return pos, neg
 
 
 def combinefeature(pep, featurelist, dataset):
+
+    print(">> Start the extraction of the features")
+
     a=np.empty([len(pep), 1])
     fname=[]
     scaling = StandardScaler()
@@ -232,35 +248,47 @@ def combinefeature(pep, featurelist, dataset):
     vocab_name = []
     #pca = PCA(n_components=10)
     #print(a)
+    
     if 'aap' in featurelist:
-        aapdic = readAAP("./retraining/"+dataset+"/aat-general.txt.normal")
+        print(f">>> Extract AAP to {len(pep)} peptides!")
+        aapdic = readAAP("aap/aap-viral.normal")
         f_aap = np.array([aap(pep, aapdic, 1)]).T
         a = np.column_stack((a,f_aap))
         #a = scaling.fit_transform(a)
         fname.append('AAP')
         #print(f_aap)
+    
     if 'aat' in featurelist:
-        aatdic = readAAT("./retraining/"+dataset+"/aat-general.txt.normal")
+        print(f">>> Extract AAT to {len(pep)} peptides!")
+        aatdic = readAAT("aat/aat-viral.normal")
         f_aat = np.array([aat(pep, aatdic, 1)]).T
         a = np.column_stack((a, f_aat))
         #a = scaling.fit_transform(a)
         fname.append('AAT')
         #print(f_aat)
+    
     if 'dpc' in featurelist:
+        print(f">>> Extract DPC to {len(pep)} peptides!")
         f_dpc, name = DPC(pep)
         # f_dpc = np.average(f_dpc, axis =1)
         a = np.column_stack((a, np.array(f_dpc)))
         fname = fname + name
+    
     if 'aac' in featurelist:
+        print(f">>> Extract AAC to {len(pep)} peptides!")
         f_aac, name = AAC(pep)
         a = np.column_stack((a, np.array(f_aac)))
         fname = fname + name
+    
     if 'paac' in featurelist:
+        print(f">>> Extract PAAC to {len(pep)} peptides!")
         f_paac, name = PAAC(pep)
         #f_paac = pca.fit_transform(f_paac)
         a = np.column_stack((a, np.array(f_paac)))
         fname = fname + name
+    
     if 'kmer' in featurelist:
+        print(f">>> Extract Kmer to {len(pep)} peptides!")
         kmers = kmer(pep, 2)
         #f_kmer = np.array(kmers.X.toarray())
         f_kmer = np.array(kmers.X.toarray())
@@ -268,36 +296,50 @@ def combinefeature(pep, featurelist, dataset):
 
         a = np.column_stack((a, f_kmer))
         fname = fname + ['kmer']*len(f_kmer)
+    
     if 'qso' in featurelist:
+        print(f">>> Extract QSO to {len(pep)} peptides!")
         f_qso, name = QSO(pep)
         #f_pa = pca.fit_transform(f_paac)
         a = np.column_stack((a, np.array(f_qso)))
         fname = fname + name
 
     if 'ctd' in featurelist:
+        print(f">>> Extract CTD to {len(pep)} peptides!")
         f_ctd, name = CTD(pep)
         a = np.column_stack((a, np.array(f_ctd)))
         fname = fname + name
+
     if 'protvec' in featurelist:
+        print(f">>> Extract Protvec to {len(pep)} peptides!")
         f_protvec = np.array(protvec(pep, 4, './protvec/sp_sequences_4mers_vec.bin').embeddingX)
         #f_protvec = pickle.load(open("features_protvec.pickle", 'rb'))
         #f_protvec = np.average(f_protvec, axis =1)
         a = np.column_stack((a, f_protvec))
         fname = fname + ['protvec']*len(f_protvec)
+
+    print(">> Finish the extraction of the features")
+
     return a[:,1:], fname, vocab_name
 
 
-def run_training(pos, neg, dataset, savename ):
+def run_training(pos, neg, dataset, savename):
+    """ Preparation to training the model with dataset name, positive data and negative data send by parameters"""
+    
+    print(">> Start the preparation to run the training")
+    
     pep_combined = pos + neg
+    
+    print(f">>> Total peptides on the dataset: {len(pep_combined)}")
+    
     pickle_info={}
-    #print(pep_combined)
-    #featurelist = ['aap', 'aat', 'protvec', 'qso', 'aac']
-    featurelist = ['aac','aap','aat','protvec']
+    # featurelist = ['aac','aap','aat','protvec', 'dpc', 'kmer']
+    featurelist = ['aac']
     pickle_info['featurelist'] = featurelist
-    features, fname, vocab = combinefeature(pep_combined, featurelist, dataset) # 'aap', 'aat', 'aac'
-    print(len(features[0]))
-    '''for i in range(len(features)):
-    	print(features[i])'''
+    features, fname, vocab = combinefeature(pep_combined, featurelist, dataset)
+    
+    print(f">>> Total features extract per peptide: {len(features[0])}")
+    
     pickle_info['feat_name'] = fname
     pickle_info['vocab'] = vocab
     #pickle.dump(features, open("features_latest.pickle", "wb"))
@@ -363,6 +405,9 @@ def f1_0(y_true, y_pred, labels=None, average='binary', sample_weight=None):
 
 
 def gridsearch(x, y, cv):
+
+    print(">> Start train grid search to model")
+
     scoring = { 'auc_score': 'roc_auc',
                 'accuracy': 'accuracy',
                 'scores_p_1': 'precision',
@@ -375,12 +420,22 @@ def gridsearch(x, y, cv):
                 'precision_micro': 'precision_micro',
                 'precision_macro': 'precision_macro', 'recall_macro': 'recall_macro',
                 'recall_micro': 'recall_micro', 'f1_macro': 'f1_macro', 'f1_micro': 'f1_micro'}
+                
     grid_search = GridSearchCV(SVC(kernel='rbf', probability=True),
                                param_grid={'C': [1000, 500, 250, 100, 50, 25, 1, 0.1,
                                                  0.01, 0.001, 0.0001],
                                            'gamma': [100, 10, 1, 0.1, 0.01, 0.001, 0.0001]},
                                scoring=scoring, cv=cv, n_jobs=40, refit='auc_score',verbose=2)
+
+    # grid_search = GridSearchCV(SVC(kernel='rbf', probability=True),
+    #                            param_grid={'C': [1000],
+    #                                        'gamma': [100]},
+    #                            scoring=scoring, cv=cv, n_jobs=40, refit='auc_score',verbose=2)
+
     grid_search.fit(x, y)
+
+    print(">> Finish train grid search to model")
+
     return grid_search
 
 
@@ -433,17 +488,30 @@ def train(peptides, features, target, pickle_info, dataset, savename):
     x = scaling.transform(features)
     #print(max(x[:,1]))
     y = np.array(target)
+    
     cv = StratifiedKFold(n_splits=5)
     model = gridsearch(x, y, cv)
-    aapdic = readAAP("./training/"+dataset+"/aap-general.txt.normal")
-    aatdic = readAAP("./training/"+dataset+"/aat-general.txt.normal")
+    
+    aapdic = readAAP("aap/aap-viral.normal")
+    aatdic = readAAT("aat/aat-viral.normal")
+    
     pickle_info ['aap'] = aapdic
     pickle_info ['aat'] = aatdic
     pickle_info ['scaling'] = scaling
     pickle_info ['model'] = model
     pickle_info ['training_features'] = features
     pickle_info ['training_targets'] = y
-    pickle.dump(pickle_info, open("./retraining/"+dataset+"/svm-"+dataset+savename+".pickle", "wb"))
+
+    filename = "model_train/"+dataset+"/svm-"+dataset+savename+".pickle"
+    
+    if not os.path.exists(os.path.dirname(filename)):
+        try:
+            os.makedirs(os.path.dirname(filename))
+        except OSError as exc: # Guard against race condition
+            if exc.errno != errno.EEXIST:
+                raise
+    
+    pickle.dump(pickle_info, open("model_train/"+dataset+"/svm-"+dataset+savename+".pickle", "wb"))
     print("Best parameters: ", model.best_params_)
     print("Best accuracy: :", model.best_score_)
     results = model.cv_results_
@@ -488,11 +556,53 @@ def scoremodel(file, mlfile):
     model = readmodel(mlfile)
     return pep, predict(model, features)
 
+def get_parameters_command_line():
+    """ Get all parameters from command line and return"""
+
+    print(">> Start sequence to get all parameters from command line")
+
+    # Verify if the positive flag to positive file of sequences is present
+    if "-p" in sys.argv:
+        positive_flag = sys.argv.index("-p")
+        positive_file = sys.argv[positive_flag + 1]
+    else:
+        print("ERROR: The positive file is not found.")
+        sys.exit()
+
+    # Verify if the negative flag to negative file of sequences is present
+    if "-n" in sys.argv:
+        negative_flag = sys.argv.index("-n")
+        negative_file = sys.argv[negative_flag + 1]
+    else:
+        print("ERROR: The negative file is not found.")
+        sys.exit()
+
+    # Verify if the dataset flag to dataset name is present
+    if "-d" in sys.argv:
+        dataset_flag = sys.argv.index("-d")
+        dataset_name = sys.argv[dataset_flag + 1]
+    else:
+        print("ERROR: The dataset name is not found.")
+        sys.exit()
+    
+    # Verify if the savename flag to savename is present
+    if "-s" in sys.argv:
+        savename_flag = sys.argv.index("-s")
+        savename = sys.argv[savename_flag + 1]
+    else:
+        print("ERROR: The savename is not found.")
+        sys.exit()
+
+    print(">> Finish the sequence to get all parameters from command line")
+
+    return positive_file, negative_file, dataset_name, savename
+
 
 if __name__ == "__main__":
-    dataset = sys.argv[1]
-    savename = sys.argv[2]
-    pos, neg = readpeptides("./training/"+dataset+"/pos.txt",
-                            "./training/"+dataset+"/neg.txt")
-    #print(pos, neg)
-    run_training(pos, neg, dataset, savename)
+
+    print(">> Start algorithm")
+
+    pos_file, neg_file, dataset, savename = get_parameters_command_line()
+    pos_data, neg_data = read_peptides(pos_file, neg_file)
+
+    run_training(pos_data, neg_data, dataset, savename)

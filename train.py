@@ -214,7 +214,11 @@ def AAC(pep): # Single Amino Acid Composition feature
     for seq in pep:
         protein.ReadProteinSequence(seq)
         aac = protein.GetAAComp()
-        feature.append(aac)
+        data = np.array(list(aac.items())).flatten()
+        index = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40]
+        data = np.delete(data, index)
+        print(data)
+        feature.append(data)
     return feature
 
 
@@ -266,27 +270,40 @@ def peptides(seq):  #return peptides of length 20 from the sequence
     return pep
 
 
-def readpeptides(posfile, negfile): # return the peptides from input peptide list file 
-    posdata = open(posfile,'r')
+def read_peptides(pos_file, neg_file): 
+    """ return the peptides from input peptide list file """ 
+
+    print("Start sequence to read the files contains the positive and negative peptides")
+    
+    # Try open the files
+    try:
+        pos_data = open(pos_file,'r')
+        neg_data = open(neg_file,'r')
+    except ValueError:
+        sys.exit()
+
     pos = []
-    for l in posdata.readlines():
-        if l[0] == '#':
+    for l in pos_data.readlines():
+        if l[0] == '#': # Ignoring the comments on file
             continue
         else:
-            pos.append(l.strip)
-    negdata = open(negfile,'r')
+            pos.append(l.strip()) # Append to positive list the peptide and remove all spaces
+    
     neg = []
-    for l in negdata.readlines():
-        if l[0] == '#':
+    for l in neg_data.readlines():
+        if l[0] == '#': # Ignoring the comments on file
             continue
         else:
-            neg.append(l.strip)
+            neg.append(l.strip()) # Append to negative list the peptide and remove all spaces
+
+    print("Finish sequence to read the files contains the positive and negative peptides")
+
     return pos, neg
 
 
 def combinefeature(pep):
-    aapdic = readAAP("./aap-general.txt.normal")
-    aatdic = readAAT("./aat-general.txt.normal")
+    aapdic = readAAP("./aap/aap-general.txt.normal")
+    aatdic = readAAT("./aat/aat-general.txt.normal")
     f_aap = np.array(aap(pep, aapdic, 1))
     #print(f_aap)
     f_aat = np.array(aat(pep, aatdic, 1))
@@ -295,7 +312,7 @@ def combinefeature(pep):
     #print(f_aac)
     f_kmer = np.array(kmer(pep, 4).X.toarray())
     #print(f_kmer)
-    f_protvec = np.array(protvec(pep, 4, '../epitope-prediction-master/protvec/sp_sequences_4mers_vec.txt').embeddingX)
+    f_protvec = np.array(protvec(pep, 4, './protvec/sp_sequences_4mers_vec.txt').embeddingX)
     #print(f_protvec)
     return np.column_stack((f_aat,f_aac,f_kmer,f_protvec))
 
@@ -322,21 +339,21 @@ def train(peptides, features, target):
     cv = StratifiedKFold(n_splits = 5)
     model = gridsearch(x, y, cv)
     pickle.dump(scaling, open("scaling.pickle", "wb"))
-    pickle.dump(model, open("model.pickle", "wb") 
+    pickle.dump(model, open("model.pickle", "wb"))
     print("Best parameters: ", grid_search.best_params_)
     print("Best accuracy: :", grid_search.best_score_)
-    print("Best 
-
     
 
 
 def readmodel(mlfile):
     try:
-        return pickle.load(open(mlfile, 'rb'))
+        pickle_file = open(mlfile, 'rb')
+        print(pickle_file)
     except:
         print("Error in reading model file")
         sys.exit()
 
+    return pickle.load(pickle_file)
 
 def predict(model, features):
     try:
@@ -344,9 +361,6 @@ def predict(model, features):
     except:
         print("Error in predicting epitopes.")
         sys.exit()
-
-
-
 
 
 def scoremodel(file, mlfile):
@@ -358,9 +372,43 @@ def scoremodel(file, mlfile):
     return pep, predict(model, features)
 
 
+def get_parameters_command_line():
+    """ Get all parameters from command line and return"""
+
+    print("Start sequence to get all parameters from command line")
+
+    # Verify if the positive flag to positive file of sequences is present
+    if "-p" in sys.argv:
+        positive_flag = sys.argv.index("-p")
+        positive_file = sys.argv[positive_flag + 1]
+    else:
+        print("ERROR: The positive file is not found.")
+        sys.exit()
+
+    # Verify if the negative flag to negative file of sequences is present
+    if "-n" in sys.argv:
+        negative_flag = sys.argv.index("-n")
+        negative_file = sys.argv[negative_flag + 1]
+    else:
+        print("ERROR: The negative file is not found.")
+        sys.exit()
+
+    print("Finish the sequence to get all parameters from command line")
+
+    return positive_file, negative_file
+
+
 if __name__ == "__main__":
-    peptide_list, pred_probability = scoremodel("./input/example.fasta", "./model/svm-model.pickle" )
-    print("List of predicted epitopes:")
-    for i in range(len(pred_probability)):
-        if pred_probability[i][1] >= 0.5:
-            print(peptide_list[i], pred_probability[i][1])
+    print("Start algorith")
+
+    pos_file, neg_file = get_parameters_command_line()
+    pos_data, neg_data = read_peptides(pos_file, neg_file)
+
+    print(pos_data)
+    print(neg_data)
+
+    # peptide_list, pred_probability = scoremodel("./input/example.fasta", "./models/model.pickle")
+    # print("List of predicted epitopes:")
+    # for i in range(len(pred_probability)):
+    #     if pred_probability[i][1] >= 0.5:
+    #         print(peptide_list[i], pred_probability[i][1])
